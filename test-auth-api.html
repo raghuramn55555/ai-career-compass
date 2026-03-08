@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Authentication API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover { background: #45a049; }
+        .error { color: #f44336; }
+        .success { color: #4CAF50; }
+        .info { color: #2196F3; }
+        pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            max-height: 400px;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Authentication API Test</h1>
+        <p class="info">This page tests the Django backend authentication API</p>
+
+        <!-- Test 1: Check Backend Connection -->
+        <div class="section">
+            <h2>1. Check Backend Connection</h2>
+            <button onclick="testConnection()">Test Connection</button>
+            <div id="connection-result"></div>
+        </div>
+
+        <!-- Test 2: Register New User -->
+        <div class="section">
+            <h2>2. Register New User</h2>
+            <input type="text" id="reg-name" placeholder="Name" value="Test User">
+            <input type="email" id="reg-email" placeholder="Email" value="webtest@example.com">
+            <input type="password" id="reg-password" placeholder="Password" value="test123456">
+            <button onclick="testRegister()">Register</button>
+            <div id="register-result"></div>
+        </div>
+
+        <!-- Test 3: Login -->
+        <div class="section">
+            <h2>3. Login</h2>
+            <input type="email" id="login-email" placeholder="Email" value="webtest@example.com">
+            <input type="password" id="login-password" placeholder="Password" value="test123456">
+            <button onclick="testLogin()">Login</button>
+            <div id="login-result"></div>
+        </div>
+
+        <!-- Test 4: Get Profile -->
+        <div class="section">
+            <h2>4. Get Profile (Requires Login)</h2>
+            <button onclick="testProfile()">Get Profile</button>
+            <div id="profile-result"></div>
+        </div>
+
+        <!-- Test 5: Check localStorage -->
+        <div class="section">
+            <h2>5. Check localStorage</h2>
+            <button onclick="checkLocalStorage()">Check Storage</button>
+            <button onclick="clearLocalStorage()">Clear Storage</button>
+            <div id="storage-result"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000/api';
+        let accessToken = null;
+
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            element.innerHTML = `<p class="${className}">${message}</p>`;
+        }
+
+        function logJson(elementId, data, type = 'success') {
+            const element = document.getElementById(elementId);
+            const className = type === 'error' ? 'error' : 'success';
+            element.innerHTML = `<p class="${className}">Response:</p><pre>${JSON.stringify(data, null, 2)}</pre>`;
+        }
+
+        async function testConnection() {
+            log('connection-result', '⏳ Testing connection...');
+            try {
+                const response = await fetch(`${API_URL}/auth/register/`, {
+                    method: 'OPTIONS'
+                });
+                
+                if (response.ok) {
+                    log('connection-result', '✅ Backend is reachable!', 'success');
+                } else {
+                    log('connection-result', `❌ Backend returned status: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                log('connection-result', `❌ Connection failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testRegister() {
+            const name = document.getElementById('reg-name').value;
+            const email = document.getElementById('reg-email').value;
+            const password = document.getElementById('reg-password').value;
+
+            log('register-result', '⏳ Registering user...');
+
+            try {
+                const response = await fetch(`${API_URL}/auth/register/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password,
+                        username: name || email.split('@')[0]
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    accessToken = data.tokens.access;
+                    localStorage.setItem('tokens', JSON.stringify(data.tokens));
+                    localStorage.setItem('current_user', JSON.stringify({
+                        name: data.user.username,
+                        email: data.user.email,
+                        joinDate: data.user.join_date
+                    }));
+                    logJson('register-result', data, 'success');
+                } else {
+                    logJson('register-result', data, 'error');
+                }
+            } catch (error) {
+                log('register-result', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testLogin() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            log('login-result', '⏳ Logging in...');
+
+            try {
+                const response = await fetch(`${API_URL}/auth/login/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    accessToken = data.access;
+                    localStorage.setItem('tokens', JSON.stringify(data));
+                    logJson('login-result', data, 'success');
+                } else {
+                    logJson('login-result', data, 'error');
+                }
+            } catch (error) {
+                log('login-result', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testProfile() {
+            if (!accessToken) {
+                const stored = localStorage.getItem('tokens');
+                if (stored) {
+                    const tokens = JSON.parse(stored);
+                    accessToken = tokens.access;
+                }
+            }
+
+            if (!accessToken) {
+                log('profile-result', '❌ No access token. Please login first.', 'error');
+                return;
+            }
+
+            log('profile-result', '⏳ Fetching profile...');
+
+            try {
+                const response = await fetch(`${API_URL}/auth/profile/`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    logJson('profile-result', data, 'success');
+                } else {
+                    logJson('profile-result', data, 'error');
+                }
+            } catch (error) {
+                log('profile-result', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        function checkLocalStorage() {
+            const tokens = localStorage.getItem('tokens');
+            const user = localStorage.getItem('current_user');
+            
+            const result = {
+                tokens: tokens ? JSON.parse(tokens) : 'Not found',
+                current_user: user ? JSON.parse(user) : 'Not found'
+            };
+
+            logJson('storage-result', result, 'info');
+        }
+
+        function clearLocalStorage() {
+            localStorage.removeItem('tokens');
+            localStorage.removeItem('current_user');
+            localStorage.removeItem('registered_users');
+            accessToken = null;
+            log('storage-result', '✅ localStorage cleared!', 'success');
+        }
+
+        // Auto-check connection on load
+        window.onload = () => {
+            testConnection();
+        };
+    </script>
+</body>
+</html>
