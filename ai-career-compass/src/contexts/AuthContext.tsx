@@ -26,20 +26,24 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 const USE_BACKEND = import.meta.env.VITE_USE_BACKEND === 'true';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  // Initialize user from localStorage
+  // Initialize user from localStorage — only if a valid token also exists
   const [user, setUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem(CURRENT_USER_KEY);
-      if (saved) {
+      const tokens = localStorage.getItem('tokens');
+      if (saved && tokens) {
         const parsed = JSON.parse(saved);
-        if (parsed.email && parsed.name && parsed.joinDate) {
+        const parsedTokens = JSON.parse(tokens);
+        if (parsed.email && parsed.name && parsed.joinDate && parsedTokens.access) {
           return parsed;
         }
       }
     } catch (error) {
       console.error('Error loading user from localStorage:', error);
-      localStorage.removeItem(CURRENT_USER_KEY);
     }
+    // Clear stale session
+    localStorage.removeItem(CURRENT_USER_KEY);
+    localStorage.removeItem('tokens');
     return null;
   });
 
@@ -144,92 +148,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Signup function (tries backend first, falls back to localStorage)
+  // Signup function - always uses backend
   const signup = async (email: string, password: string, name: string): Promise<{ success: boolean; error?: string }> => {
-    // Validate input
-    if (!email || !password || !name) {
-      return { success: false, error: 'All fields are required' };
-    }
-
-    if (password.length < 6) {
-      return { success: false, error: 'Password must be at least 6 characters' };
-    }
-
+    if (!email || !password || !name) return { success: false, error: 'All fields are required' };
+    if (password.length < 6) return { success: false, error: 'Password must be at least 6 characters' };
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return { success: false, error: 'Invalid email format' };
-    }
-
-    // Try backend first if enabled
-    if (USE_BACKEND) {
-      const result = await signupBackend(email, password, name);
-      if (result.success) return result;
-      console.log('Backend signup failed, using localStorage');
-    }
-
-    // Fallback to localStorage
-    const registeredUsers = getRegisteredUsers();
-    const existingUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-    
-    if (existingUser) {
-      return { success: false, error: 'Email already registered. Please login.' };
-    }
-
-    const newUser: StoredUser = {
-      name,
-      email: email.toLowerCase(),
-      password,
-      joinDate: new Date().toLocaleDateString(),
-    };
-
-    registeredUsers.push(newUser);
-    saveRegisteredUsers(registeredUsers);
-
-    const currentUser: User = {
-      name: newUser.name,
-      email: newUser.email,
-      joinDate: newUser.joinDate,
-    };
-    
-    setUser(currentUser);
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
-
-    return { success: true };
+    if (!emailRegex.test(email)) return { success: false, error: 'Invalid email format' };
+    return await signupBackend(email, password, name);
   };
 
-  // Login function (tries backend first, falls back to localStorage)
+  // Login function - always uses backend
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    if (!email || !password) {
-      return { success: false, error: 'Email and password are required' };
-    }
-
-    // Try backend first if enabled
-    if (USE_BACKEND) {
-      const result = await loginBackend(email, password);
-      if (result.success) return result;
-      console.log('Backend login failed, using localStorage');
-    }
-
-    // Fallback to localStorage
-    const registeredUsers = getRegisteredUsers();
-    const foundUser = registeredUsers.find(
-      u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-    );
-
-    if (!foundUser) {
-      return { success: false, error: 'Invalid email or password' };
-    }
-
-    const currentUser: User = {
-      name: foundUser.name,
-      email: foundUser.email,
-      joinDate: foundUser.joinDate,
-    };
-
-    setUser(currentUser);
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
-
-    return { success: true };
+    if (!email || !password) return { success: false, error: 'Email and password are required' };
+    return await loginBackend(email, password);
   };
 
   // Logout function
@@ -237,6 +168,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     localStorage.removeItem(CURRENT_USER_KEY);
     localStorage.removeItem('tokens');
+    localStorage.removeItem('registered_users');
   };
 
   return (

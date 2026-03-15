@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.shortcuts import get_object_or_404
 from .models import Career, CareerAnalysis, SavedCareer, Roadmap
-from .serializers import (CareerSerializer, CareerAnalysisSerializer, 
+from .serializers import (CareerSerializer, CareerAnalysisSerializer,
                           SavedCareerSerializer, RoadmapSerializer)
 from .llm_service import LLMService
 from .career_matcher import CareerMatcher

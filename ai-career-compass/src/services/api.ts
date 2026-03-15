@@ -13,7 +13,8 @@ const api = axios.create({
 
 // Add token to requests if available
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
+  const tokens = localStorage.getItem('tokens');
+  const token = tokens ? JSON.parse(tokens).access : null;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -30,19 +31,20 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       
       try {
-        const refreshToken = localStorage.getItem('refresh_token');
+        const tokens = localStorage.getItem('tokens');
+        const refreshToken = tokens ? JSON.parse(tokens).refresh : null;
         const response = await axios.post(`${API_URL}/auth/token/refresh/`, {
           refresh: refreshToken,
         });
         
-        localStorage.setItem('access_token', response.data.access);
+        const existing = JSON.parse(localStorage.getItem('tokens') || '{}');
+        localStorage.setItem('tokens', JSON.stringify({ ...existing, access: response.data.access }));
         originalRequest.headers.Authorization = `Bearer ${response.data.access}`;
         
         return api(originalRequest);
       } catch (refreshError) {
-        // Refresh failed, logout user
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('tokens');
+        localStorage.removeItem('current_user');
         window.location.href = '/auth';
         return Promise.reject(refreshError);
       }
@@ -136,6 +138,41 @@ export const careerAPI = {
   // Get analysis history
   getAnalysisHistory: async () => {
     const response = await api.get('/careers/history/');
+    return response.data;
+  },
+};
+
+// ============================================
+// DOCUMENT APIs
+// ============================================
+
+export const documentAPI = {
+  // Summarize an uploaded document
+  summarize: async (file: File, mode: 'summary' | 'keyTerms' | 'studyGuide') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('mode', mode);
+    const response = await api.post('/documents/summarize/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  // Ask a question about a document (first message — sends file)
+  askWithFile: async (file: File, question: string, history: { role: string; text: string }[]) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('question', question);
+    formData.append('history', JSON.stringify(history));
+    const response = await api.post('/documents/ask/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  // Ask a follow-up question using cached text
+  askWithText: async (text: string, question: string, history: { role: string; text: string }[]) => {
+    const response = await api.post('/documents/ask/', { text, question, history });
     return response.data;
   },
 };

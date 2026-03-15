@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'users',
     'careers',
+    'documents',
 ]
 
 MIDDLEWARE = [
@@ -97,9 +98,13 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_CREDENTIALS = True
 
 # LLM Configuration
-LLM_PROVIDER = config('LLM_PROVIDER', default='openai')
+LLM_PROVIDER = config('LLM_PROVIDER', default='gemini')
 OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
 ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='')
+GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
+
+# File upload size limit (10MB)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
 # Celery Configuration
 CELERY_BROKER_URL = config('REDIS_URL', default='redis://localhost:6379/0')

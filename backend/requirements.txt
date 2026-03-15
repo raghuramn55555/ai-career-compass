@@ -5,3 +5,6 @@ python-decouple==3.8
 djangorestframework-simplejwt==5.3.1
 openai==1.12.0
 anthropic==0.18.1
+PyPDF2==3.0.1
+python-docx==1.1.0
+google-genai==1.16.0
