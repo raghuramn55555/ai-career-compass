@@ -81,7 +81,7 @@ export interface ProgressInsight {
 // Gemini Service Class
 export class GeminiService {
   private model = genAI.getGenerativeModel({ 
-    model: 'gemini-pro',
+    model: 'gemini-2.5-flash',
     generationConfig: {
       temperature: 0.7,
       topK: 40,

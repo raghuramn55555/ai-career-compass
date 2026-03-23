@@ -132,7 +132,7 @@ export class GeminiMultiKeyService {
 
   private getModel(apiType: keyof typeof aiInstances) {
     return aiInstances[apiType].getGenerativeModel({ 
-      model: 'gemini-pro',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.7,
         topK: 40,
