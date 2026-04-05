@@ -44,13 +44,10 @@ class LLMService:
             return self._fallback_analysis(user_text)
     
     def generate_roadmap(self, career_title: str, user_level: str = "beginner") -> List[Dict]:
-        """
-        Generate personalized learning roadmap using LLM
-        """
+        """Generate personalized learning roadmap using LLM"""
         prompt = f"""Generate a detailed learning roadmap for becoming a {career_title}.
         User level: {user_level}
-        
-        Create 4 milestones with 4 tasks each. Format as JSON:
+        Create 4 milestones with 4 tasks each. Return ONLY valid JSON array, no markdown:
         [
           {{
             "id": "m1",
@@ -62,15 +59,28 @@ class LLMService:
           }}
         ]
         """
-        
         try:
-            if self.provider == 'openai':
+            if self.provider == 'gemini':
+                response = self._call_gemini(prompt, temperature=0.7)
+            elif self.provider == 'openai':
                 response = self._call_openai(prompt, temperature=0.7)
-            else:
+            elif self.provider == 'anthropic':
                 response = self._call_anthropic(prompt, temperature=0.7)
-            
+            else:
+                return self._fallback_roadmap(career_title)
+
+            response = response.strip()
+            if response.startswith('```'):
+                response = response.split('```')[1]
+                if response.startswith('json'):
+                    response = response[4:]
+            start = response.find('[')
+            end = response.rfind(']') + 1
+            if start != -1 and end > 0:
+                response = response[start:end]
             return json.loads(response)
-        except:
+        except Exception as e:
+            print(f"generate_roadmap error: {e}")
             return self._fallback_roadmap(career_title)
 
     
@@ -106,7 +116,7 @@ Provide analysis in JSON format:
     
     def _call_openai(self, prompt: str, temperature: float = 0.5) -> str:
         """Call OpenAI API"""
-        response = self.client.ChatCompletion.create(
+        response = self.client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a career counselor AI."},
@@ -134,7 +144,7 @@ Provide analysis in JSON format:
             prompt,
             generation_config=self.client.types.GenerationConfig(
                 temperature=temperature,
-                max_output_tokens=1500
+                max_output_tokens=4000
             )
         )
         return response.text
@@ -174,66 +184,78 @@ Provide analysis in JSON format:
         ]
 
     def generate_study_plan(self, career: str, skill_level: str = "beginner") -> Dict[str, Any]:
-        """
-        Generate AI-powered study plan for a career
-        """
-        prompt = f"""Generate a comprehensive study plan for someone pursuing a career as a {career}.
+        """Generate AI-powered study plan for a career"""
+        prompt = f"""Return ONLY a JSON object for a {career} study plan at {skill_level} level. Use EXACTLY this structure with no extra fields:
+{{"career":"{career}","skill_level":"{skill_level}","study_plan":[{{"topic":"Python Basics","description":"Learn Python syntax and data structures.","youtube_link":"https://www.youtube.com/results?search_query=python+basics","estimated_hours":15,"difficulty":"beginner","prerequisites":[]}},{{"topic":"Mathematics for ML","description":"Study linear algebra, calculus and statistics.","youtube_link":"https://www.youtube.com/results?search_query=math+for+machine+learning","estimated_hours":20,"difficulty":"beginner","prerequisites":["Python Basics"]}}],"total_estimated_hours":35}}
+Replace the example topics with 6-8 real topics for {career} at {skill_level} level. Keep descriptions to one short sentence. Return ONLY the JSON, nothing else."""
 
-Skill Level: {skill_level}
-
-Generate a JSON response with this EXACT structure:
-{{
-  "career": "{career}",
-  "skill_level": "{skill_level}",
-  "study_plan": [
-    {{
-      "topic": "Topic Name",
-      "description": "Clear explanation of what to learn and why it's important",
-      "youtube_link": "https://www.youtube.com/results?search_query=topic+keywords",
-      "estimated_hours": 20,
-      "difficulty": "beginner",
-      "prerequisites": ["prerequisite1", "prerequisite2"]
-    }}
-  ],
-  "total_estimated_hours": 200
-}}
-
-Requirements:
-1. Generate 8-12 topics in logical learning order
-2. Start with fundamentals, progress to advanced
-3. Each description should be 2-3 sentences
-4. YouTube links must be actual search URLs with relevant keywords
-5. Estimate realistic hours for each topic
-6. Mark difficulty as beginner/intermediate/advanced
-7. List prerequisites for each topic
-8. Total hours should be realistic for the career path
-
-Return ONLY the JSON object, no markdown formatting or additional text."""
-        
         try:
-            if self.provider == 'openai':
-                response = self._call_openai(prompt, temperature=0.7)
+            if self.provider == 'gemini':
+                response = self._call_gemini(prompt, temperature=0.5)
+            elif self.provider == 'openai':
+                response = self._call_openai(prompt, temperature=0.5)
             elif self.provider == 'anthropic':
-                response = self._call_anthropic(prompt, temperature=0.7)
-            elif self.provider == 'gemini':
-                response = self._call_gemini(prompt, temperature=0.7)
+                response = self._call_anthropic(prompt, temperature=0.5)
             else:
                 return self._fallback_study_plan(career, skill_level)
-            
+
             return self._parse_study_plan_response(response)
         except Exception as e:
             print(f"Study plan generation error: {e}")
             return self._fallback_study_plan(career, skill_level)
     
     def _parse_study_plan_response(self, response: str) -> Dict[str, Any]:
-        """Parse study plan JSON response"""
+        """Parse study plan JSON response - handles multiline strings from Gemini"""
+        import re
         try:
-            # Extract JSON from response
-            start = response.find('{')
-            end = response.rfind('}') + 1
-            json_str = response[start:end]
-            return json.loads(json_str)
-        except:
+            text = response.strip()
+            # Strip markdown fences
+            if '```' in text:
+                parts = text.split('```')
+                for part in parts:
+                    if '{' in part:
+                        text = part.lstrip('json').strip()
+                        break
+
+            # Find JSON boundaries
+            start = text.find('{')
+            end = text.rfind('}') + 1
+            if start == -1 or end == 0:
+                raise ValueError("No JSON object found")
+            text = text[start:end]
+
+            # Replace actual newlines inside JSON string values with a space
+            # This handles Gemini's multiline descriptions
+            def fix_string_newlines(s):
+                result = []
+                in_string = False
+                escape = False
+                for ch in s:
+                    if escape:
+                        result.append(ch)
+                        escape = False
+                    elif ch == '\\':
+                        result.append(ch)
+                        escape = True
+                    elif ch == '"':
+                        result.append(ch)
+                        in_string = not in_string
+                    elif in_string and ch in ('\n', '\r'):
+                        result.append(' ')
+                    else:
+                        result.append(ch)
+                return ''.join(result)
+
+            text = fix_string_newlines(text)
+            # Fix trailing commas
+            text = re.sub(r',(\s*[}\]])', r'\1', text)
+
+            result = json.loads(text)
+            if not result.get('study_plan'):
+                raise ValueError("Empty study_plan array")
+            return result
+        except Exception as e:
+            print(f"Study plan parse error: {e}")
             return {"study_plan": [], "total_estimated_hours": 0}
     
     def _fallback_study_plan(self, career: str, skill_level: str) -> Dict[str, Any]:

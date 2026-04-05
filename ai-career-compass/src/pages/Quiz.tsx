@@ -5,6 +5,7 @@ import { Sparkles, Loader2, Check } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import { analyzeInterests, AnalysisResult } from '@/utils/careerData';
 import { careerMatchingService } from '@/services/careerMatchingService';
+import { careerAPI } from '@/services/api';
 import { useUserData } from '@/contexts/UserDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -114,22 +115,8 @@ const Quiz = () => {
     
     try {
       // Use backend LLM service to match careers
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch('http://localhost:8000/api/careers/match-quiz/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ quiz_answers: quizAnswers })
-      });
+      const matchResult = await careerAPI.matchQuiz(quizAnswers);
 
-      if (!response.ok) {
-        throw new Error('Failed to match careers');
-      }
-
-      const matchResult = await response.json();
-      
       if (matchResult.success && matchResult.careers.length > 0) {
         // Convert backend results to AnalysisResult format
         const result: AnalysisResult = {

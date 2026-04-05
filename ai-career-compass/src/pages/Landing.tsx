@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Stethoscope, Code, Palette, FlaskConical, GraduationCap, Scale, Briefcase, Wrench, Brain, Target, Map, Zap, Users, BookOpen, Trophy, ArrowRight, Compass, Sparkles, ChevronRight } from 'lucide-react';
 import Navbar from '@/components/Navbar';
@@ -51,6 +51,7 @@ const testimonials = [
 
 const Landing = () => {
   const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const quizLink = isAuthenticated ? '/quiz' : '/auth';
   const resultsLink = isAuthenticated ? '/results' : '/auth';
 
@@ -133,7 +134,8 @@ const Landing = () => {
         <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">Explore <span className="gradient-text-accent">Career Fields</span></h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
           {categories.map(({ name, icon: Icon, count }) => (
-            <div key={name} className="glass-card rounded-xl p-5 text-center hover:border-primary/30 transition-colors cursor-pointer group">
+            <div key={name} onClick={() => navigate(isAuthenticated ? `/results?category=${name}` : '/auth')}
+              className="glass-card rounded-xl p-5 text-center hover:border-primary/30 transition-colors cursor-pointer group">
               <Icon className="h-8 w-8 mx-auto mb-2 text-primary group-hover:scale-110 transition-transform" />
               <h3 className="font-semibold text-sm">{name}</h3>
               <p className="text-xs text-muted-foreground">{count}</p>

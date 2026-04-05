@@ -183,7 +183,8 @@ Create 5-8 topics. Keep descriptions short (one sentence). Use real topic names 
       }
 
       // Try backend first if available
-      const token = localStorage.getItem('auth_token');
+      const storedTokens = localStorage.getItem('tokens');
+      const token = storedTokens ? JSON.parse(storedTokens).access : null;
       if (token && API_URL) {
         try {
           const backendResponse = await fetch(`${API_URL}/careers/study-plan/`, {

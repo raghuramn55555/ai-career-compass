@@ -15,6 +15,7 @@ import StudyTools from "./pages/StudyTools";
 import DocumentTools from "./pages/DocumentTools";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
+import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ const App = () => (
                 <Route path="/study-tools" element={<StudyTools />} />
                 <Route path="/documents" element={<DocumentTools />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

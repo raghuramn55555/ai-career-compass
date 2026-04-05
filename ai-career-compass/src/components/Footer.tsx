@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Compass } from 'lucide-react';
 
 const Footer = () => (
@@ -14,28 +15,28 @@ const Footer = () => (
         <div>
           <h4 className="font-semibold mb-3 text-sm">Platform</h4>
           <div className="space-y-2 text-sm text-muted-foreground">
-            <p className="hover:text-foreground cursor-pointer transition-colors">Career Quiz</p>
-            <p className="hover:text-foreground cursor-pointer transition-colors">Career Explorer</p>
-            <p className="hover:text-foreground cursor-pointer transition-colors">Study Tools</p>
-            <p className="hover:text-foreground cursor-pointer transition-colors">Roadmaps</p>
+            <Link to="/quiz" className="block hover:text-foreground transition-colors">Career Quiz</Link>
+            <Link to="/results" className="block hover:text-foreground transition-colors">Career Explorer</Link>
+            <Link to="/study-tools" className="block hover:text-foreground transition-colors">Study Tools</Link>
+            <Link to="/roadmap" className="block hover:text-foreground transition-colors">Roadmaps</Link>
           </div>
         </div>
         <div>
           <h4 className="font-semibold mb-3 text-sm">Resources</h4>
           <div className="space-y-2 text-sm text-muted-foreground">
-            <p className="hover:text-foreground cursor-pointer transition-colors">Blog</p>
-            <p className="hover:text-foreground cursor-pointer transition-colors">Documentation</p>
-            <p className="hover:text-foreground cursor-pointer transition-colors">Career Guides</p>
-            <p className="hover:text-foreground cursor-pointer transition-colors">FAQ</p>
+            <Link to="/documents" className="block hover:text-foreground transition-colors">Document Tools</Link>
+            <Link to="/profile" className="block hover:text-foreground transition-colors">My Profile</Link>
+            <Link to="/quiz" className="block hover:text-foreground transition-colors">Career Guides</Link>
+            <Link to="/results" className="block hover:text-foreground transition-colors">FAQ</Link>
           </div>
         </div>
         <div>
           <h4 className="font-semibold mb-3 text-sm">Company</h4>
           <div className="space-y-2 text-sm text-muted-foreground">
-            <p className="hover:text-foreground cursor-pointer transition-colors">About</p>
-            <p className="hover:text-foreground cursor-pointer transition-colors">Privacy</p>
-            <p className="hover:text-foreground cursor-pointer transition-colors">Terms</p>
-            <p className="hover:text-foreground cursor-pointer transition-colors">Contact</p>
+            <Link to="/" className="block hover:text-foreground transition-colors">About</Link>
+            <Link to="/auth" className="block hover:text-foreground transition-colors">Sign In</Link>
+            <Link to="/auth" className="block hover:text-foreground transition-colors">Sign Up</Link>
+            <a href="mailto:nallabati.raghuram1@gmail.com" className="block hover:text-foreground transition-colors">Contact</a>
           </div>
         </div>
       </div>

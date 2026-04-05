@@ -130,15 +130,19 @@ class GenerateStudyPlanView(views.APIView):
             return Response({'error': 'Invalid skill level'}, 
                           status=status.HTTP_400_BAD_REQUEST)
         
-        # Check if study plan already exists for this career and skill level
+        # Check if study plan already exists and has content
         existing_plan = StudyPlan.objects.filter(
             user=request.user,
             career=career,
             skill_level=skill_level
         ).first()
-        
-        if existing_plan:
+
+        if existing_plan and existing_plan.study_plan:
             return Response(StudyPlanSerializer(existing_plan).data)
+
+        # Delete empty/broken cached plan if exists
+        if existing_plan:
+            existing_plan.delete()
         
         # Generate study plan using LLM
         llm_service = LLMService()

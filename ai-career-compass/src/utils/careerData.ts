@@ -186,7 +186,7 @@ export function analyzeInterests(text: string, quizAnswers: Record<string, any> 
 }
 
 export function getDefaultCareers(): Career[] {
-  return CAREERS.map(c => ({ ...c, matchPercentage: Math.floor(Math.random() * 30) + 40, matchReason: 'Explore this career path' }));
+  return CAREERS.map(c => ({ ...c, matchPercentage: 0, matchReason: 'Complete the quiz to see your match' }));
 }
 
 export function getAllCategories(): string[] {

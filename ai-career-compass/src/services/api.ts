@@ -89,6 +89,22 @@ export const authAPI = {
     const response = await api.put('/auth/profile/', data);
     return response.data;
   },
+
+  // Sync progress to DB
+  syncProgress: async (data: {
+    points: number; level: number; streak: number;
+    tasks_completed: number; study_hours: number;
+    badges: any[]; roadmap_tasks: string[];
+  }) => {
+    const response = await api.post('/auth/sync-progress/', data);
+    return response.data;
+  },
+
+  // Load progress from DB
+  loadProgress: async () => {
+    const response = await api.get('/auth/sync-progress/');
+    return response.data;
+  },
 };
 
 // ============================================
@@ -141,6 +157,12 @@ export const careerAPI = {
       career_title: careerTitle,
       level,
     });
+    return response.data;
+  },
+
+  // Match careers from quiz answers via backend LLM
+  matchQuiz: async (quizAnswers: Record<string, string>) => {
+    const response = await api.post('/careers/match-quiz/', { quiz_answers: quizAnswers });
     return response.data;
   },
 
