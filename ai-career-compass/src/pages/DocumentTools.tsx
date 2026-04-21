@@ -180,7 +180,7 @@ const DocumentTools = () => {
             <div className="max-w-3xl">
               <div className="flex flex-wrap gap-3 mb-6">
                 {MODES.map(o => (
-                  <button key={o.key} onClick={() => setMode(o.key)}
+                  <button key={o.key} onClick={() => { setMode(o.key); setResult(null); setError(''); }}
                     className={`px-4 py-2 rounded-lg text-sm transition-all ${mode === o.key ? 'gradient-bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'}`}>
                     {o.label}
                   </button>
