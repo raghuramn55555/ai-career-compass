@@ -303,8 +303,8 @@ Replace the example topics with 6-8 real topics for {career} at {skill_level} le
         Summarize a document using LLM
         Modes: 'summary', 'keyTerms', 'studyGuide'
         """
-        # Limit text to avoid token limits
-        doc_text = text[:3000] if len(text) > 3000 else text
+        # Limit text to avoid token limits (gemini supports large context, 15000 chars ~ 3750 tokens)
+        doc_text = text[:15000] if len(text) > 15000 else text
         
         if mode == 'summary':
             prompt = f"""Summarize this document in 8-10 key points.
@@ -394,7 +394,7 @@ Return ONLY this JSON (no markdown, no extra text):
             context += f"{role}: {msg.get('text', '')}\n"
         
         # Limit document text to avoid token limits
-        doc_excerpt = text[:4000] if len(text) > 4000 else text
+        doc_excerpt = text[:15000] if len(text) > 15000 else text
         
         prompt = f"""You are a helpful assistant answering questions about a document.
 
