@@ -1,9 +1,10 @@
 import io
 from rest_framework import views, status
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from careers.llm_service import LLMService
+from django.conf import settings
 
 
 def extract_text_from_file(file) -> str:
@@ -95,3 +96,33 @@ class DocumentAskView(views.APIView):
         answer = llm.ask_document(text, question, history)
 
         return Response({'answer': answer})
+
+
+class DocumentDebugView(views.APIView):
+    """Debug endpoint — checks LLM config and runs a quick test (no auth required)"""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        key = settings.GEMINI_API_KEY
+        provider = settings.LLM_PROVIDER
+        key_present = bool(key and not key.startswith('your_'))
+
+        result = {
+            'provider': provider,
+            'gemini_key_present': key_present,
+            'gemini_key_prefix': key[:10] + '...' if key_present else 'NOT SET',
+        }
+
+        if key_present and provider == 'gemini':
+            try:
+                llm = LLMService()
+                test = llm.summarize_document('Test document about Python programming.', 'summary')
+                result['llm_test'] = 'SUCCESS'
+                result['sample_point'] = test['points'][0] if test['points'] else 'empty'
+            except Exception as e:
+                result['llm_test'] = 'FAILED'
+                result['error'] = str(e)
+        else:
+            result['llm_test'] = 'SKIPPED — key missing or wrong provider'
+
+        return Response(result)
