@@ -290,11 +290,13 @@ export const UserDataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const generateRoadmap = (career: Career) => {
-    const rm = generateRoadmapForCareer(career);
+    // If pre-built milestones are passed (from backend), use them directly
+    const prebuilt = (career as any)._levelMilestones;
+    const rm = prebuilt ? prebuilt : generateRoadmapForCareer(career);
     setRoadmap(rm);
     persist('roadmap', rm);
     setSelectedCareer(career);
-    persist('selectedCareer', career);
+    persist('selectedCareer', { ...career, _levelMilestones: undefined });
   };
 
   const addFocusTime = (mins: number) => {

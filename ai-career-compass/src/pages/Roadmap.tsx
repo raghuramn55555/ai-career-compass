@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Map, Sparkles, Zap, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Map, Sparkles, Zap, CheckCircle2, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import AIRoadmap from '@/components/AIRoadmap';
 import TaskItem from '@/components/TaskItem';
@@ -11,22 +11,75 @@ import { useUserData } from '@/contexts/UserDataContext';
 const Roadmap = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
-  const { selectedCareer, roadmap, toggleTask, points } = useUserData();
+  const { selectedCareer, roadmap, toggleTask, points, generateRoadmap } = useUserData();
   const [level, setLevel] = useState<'beginner' | 'intermediate' | 'advanced'>('beginner');
   const [openMilestone, setOpenMilestone] = useState<string | null>(null);
+  const [tasksLoading, setTasksLoading] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) navigate('/auth');
     if (!selectedCareer) navigate('/results');
   }, [isAuthenticated, selectedCareer, navigate]);
 
-  // Auto-open first incomplete milestone
+  // Fetch level-specific tasks from backend whenever level changes
   useEffect(() => {
-    if (roadmap.length > 0 && !openMilestone) {
-      const first = roadmap.find(m => m.tasks.some(t => !t.completed));
-      setOpenMilestone(first?.id || roadmap[0].id);
-    }
-  }, [roadmap]);
+    if (!selectedCareer) return;
+    setTasksLoading(true);
+    setOpenMilestone(null);
+
+    // Use the LLM generate_roadmap endpoint which supports level
+    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api'}/careers/roadmap/generate-by-title/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${JSON.parse(localStorage.getItem('tokens') || '{}').access || ''}`,
+      },
+      body: JSON.stringify({ career_title: selectedCareer.title, level }),
+    })
+      .then(r => r.json())
+      .then((data) => {
+        // data.roadmap = [{step_number, title, description}]
+        if (Array.isArray(data.roadmap) && data.roadmap.length > 0) {
+          // Convert roadmap steps into milestone+task format
+          const milestones = data.roadmap.map((step: any, i: number) => ({
+            id: `m${i + 1}`,
+            title: step.title,
+            description: step.description || '',
+            tasks: [
+              {
+                id: `t${i + 1}_1`,
+                title: `Study: ${step.title}`,
+                xp: level === 'advanced' ? 150 : level === 'intermediate' ? 100 : 50,
+                time: level === 'advanced' ? '3 hrs' : level === 'intermediate' ? '2 hrs' : '1 hr',
+                completed: false,
+                priority: 'high' as const,
+                youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(`${selectedCareer.title} ${step.title} ${level} tutorial`)}`,
+              },
+              {
+                id: `t${i + 1}_2`,
+                title: `Practice: ${step.title}`,
+                xp: level === 'advanced' ? 100 : level === 'intermediate' ? 75 : 40,
+                time: level === 'advanced' ? '2 hrs' : level === 'intermediate' ? '1.5 hrs' : '45 min',
+                completed: false,
+                priority: 'medium' as const,
+                youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(`${selectedCareer.title} ${step.title} practice exercises`)}`,
+              },
+            ],
+          }));
+          generateRoadmap({ ...selectedCareer, _levelMilestones: milestones } as any);
+        } else {
+          generateRoadmap(selectedCareer);
+        }
+      })
+      .catch(() => generateRoadmap(selectedCareer))
+      .finally(() => {
+        setTasksLoading(false);
+        // Auto-open first milestone after load
+        setTimeout(() => {
+          setOpenMilestone('m1');
+        }, 100);
+      });
+  }, [level, selectedCareer?.title]);
 
   if (!selectedCareer) return null;
 
@@ -94,7 +147,12 @@ const Roadmap = () => {
           <AIRoadmap career={selectedCareer.title} level={level} />
 
           {/* Task milestones — earn XP here */}
-          {roadmap.length > 0 && (
+          {tasksLoading ? (
+            <div className="mt-10 flex items-center justify-center gap-3 py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <span className="text-sm text-muted-foreground">Generating {level} learning tasks...</span>
+            </div>
+          ) : roadmap.length > 0 && (
             <div className="mt-10">
               <h2 className="text-2xl font-bold mb-2">Learning Tasks</h2>
               <p className="text-sm text-muted-foreground mb-6">
