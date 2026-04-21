@@ -2,6 +2,14 @@ import json
 from django.conf import settings
 from typing import Dict, List, Any
 
+# Gemini models in priority order — falls back to next on 429 quota errors
+GEMINI_MODEL_FALLBACK = [
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite',
+    'gemini-2.5-flash-lite',
+]
+
 class LLMService:
     """Service for LLM-powered career analysis"""
     
@@ -138,16 +146,30 @@ Provide analysis in JSON format:
         return message.content[0].text
     
     def _call_gemini(self, prompt: str, temperature: float = 0.5) -> str:
-        """Call Google Gemini API"""
-        model = self.client.GenerativeModel('gemini-2.5-flash')
-        response = model.generate_content(
-            prompt,
-            generation_config=self.client.types.GenerationConfig(
-                temperature=temperature,
-                max_output_tokens=4000
-            )
-        )
-        return response.text
+        """Call Google Gemini API with automatic model fallback on quota errors"""
+        last_error = None
+        for model_name in GEMINI_MODEL_FALLBACK:
+            try:
+                model = self.client.GenerativeModel(model_name)
+                response = model.generate_content(
+                    prompt,
+                    generation_config=self.client.types.GenerationConfig(
+                        temperature=temperature,
+                        max_output_tokens=4000
+                    )
+                )
+                print(f"[Gemini] Using model: {model_name}")
+                return response.text
+            except Exception as e:
+                err_str = str(e)
+                if '429' in err_str or 'quota' in err_str.lower() or 'RESOURCE_EXHAUSTED' in err_str:
+                    print(f"[Gemini] {model_name} quota exceeded, trying next model...")
+                    last_error = e
+                    continue
+                # Non-quota error — raise immediately
+                raise e
+        # All models exhausted
+        raise Exception(f"All Gemini models quota exceeded. Last error: {last_error}")
     
     def _parse_llm_response(self, response: str) -> Dict[str, Any]:
         """Parse LLM JSON response"""
