@@ -12,6 +12,19 @@ const geminiAI = GEMINI_KEY && !GEMINI_KEY.includes('your_') ? new GoogleGenerat
 const anthropic = ANTHROPIC_KEY && !ANTHROPIC_KEY.includes('your_') ? new Anthropic({ apiKey: ANTHROPIC_KEY, dangerouslyAllowBrowser: true }) : null;
 const openai = OPENAI_KEY && !OPENAI_KEY.includes('your_') ? new OpenAI({ apiKey: OPENAI_KEY, dangerouslyAllowBrowser: true }) : null;
 
+// Models in priority order — best first, falls back on quota errors
+const GEMINI_MODELS = [
+  'gemini-2.5-pro',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-flash-latest',
+  'gemini-3-flash-preview',
+  'gemini-3.1-flash-lite-preview',
+  'gemini-flash-lite-latest',
+];
+
 export interface CareerMatch {
   career: string;
   matchPercentage: number;
@@ -104,24 +117,28 @@ Make sure matchPercentage is a number between 0-100. Keep reasons short (1-2 sen
 
   async matchWithGemini(quizAnswers: Record<string, any>): Promise<CareerMatchResponse> {
     if (!geminiAI) throw new Error('Gemini API key not configured');
-
-    const model = geminiAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 2000,
+    let lastError: Error | null = null;
+    for (const modelName of GEMINI_MODELS) {
+      try {
+        const model = geminiAI.getGenerativeModel({
+          model: modelName,
+          generationConfig: { temperature: 0.7, maxOutputTokens: 2000 }
+        });
+        const result = await model.generateContent(this.createPrompt(quizAnswers));
+        console.log(`[Gemini Career] Using model: ${modelName}`);
+        const parsed = this.parseJSON(result.response.text());
+        return { success: true, careers: parsed.careers || [], summary: parsed.summary };
+      } catch (e: any) {
+        const msg = e?.message || '';
+        if (msg.includes('429') || msg.toLowerCase().includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+          console.warn(`[Gemini Career] ${modelName} quota exceeded, trying next...`);
+          lastError = e;
+          continue;
+        }
+        throw e;
       }
-    });
-
-    const result = await model.generateContent(this.createPrompt(quizAnswers));
-    const response = await result.response;
-    const parsed = this.parseJSON(response.text());
-
-    return {
-      success: true,
-      careers: parsed.careers || [],
-      summary: parsed.summary
-    };
+    }
+    throw lastError ?? new Error('All Gemini models quota exceeded');
   }
 
   async matchWithClaude(quizAnswers: Record<string, any>): Promise<CareerMatchResponse> {

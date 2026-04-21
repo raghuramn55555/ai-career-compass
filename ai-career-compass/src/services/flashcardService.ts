@@ -12,6 +12,19 @@ const geminiAI = GEMINI_KEY ? new GoogleGenerativeAI(GEMINI_KEY) : null;
 const anthropic = ANTHROPIC_KEY ? new Anthropic({ apiKey: ANTHROPIC_KEY, dangerouslyAllowBrowser: true }) : null;
 const openai = OPENAI_KEY ? new OpenAI({ apiKey: OPENAI_KEY, dangerouslyAllowBrowser: true }) : null;
 
+// Models in priority order — best first, falls back on quota errors
+const GEMINI_MODELS = [
+  'gemini-2.5-pro',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-flash-latest',
+  'gemini-3-flash-preview',
+  'gemini-3.1-flash-lite-preview',
+  'gemini-flash-lite-latest',
+];
+
 export interface Flashcard {
   id: string;
   front: string;
@@ -72,25 +85,33 @@ Return ONLY the JSON array, no markdown formatting or additional text.`;
 
   async generateWithGemini(topic: string, count: number = 10): Promise<Flashcard[]> {
     if (!geminiAI) throw new Error('Gemini API key not configured');
-    
-    const model = geminiAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash',
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 2000,
+    let lastError: Error | null = null;
+    for (const modelName of GEMINI_MODELS) {
+      try {
+        const model = geminiAI.getGenerativeModel({
+          model: modelName,
+          generationConfig: { temperature: 0.7, maxOutputTokens: 2000 }
+        });
+        const result = await model.generateContent(this.createPrompt(topic, count));
+        console.log(`[Gemini Flashcard] Using model: ${modelName}`);
+        const cards = this.parseJSON(result.response.text());
+        return cards.map((card: any, i: number) => ({
+          id: `card-${Date.now()}-${i}`,
+          front: card.front,
+          back: card.back,
+          confidence: 'none' as const,
+        }));
+      } catch (e: any) {
+        const msg = e?.message || '';
+        if (msg.includes('429') || msg.toLowerCase().includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+          console.warn(`[Gemini Flashcard] ${modelName} quota exceeded, trying next...`);
+          lastError = e;
+          continue;
+        }
+        throw e;
       }
-    });
-
-    const result = await model.generateContent(this.createPrompt(topic, count));
-    const response = await result.response;
-    const cards = this.parseJSON(response.text());
-    
-    return cards.map((card: any, i: number) => ({
-      id: `card-${Date.now()}-${i}`,
-      front: card.front,
-      back: card.back,
-      confidence: 'none' as const,
-    }));
+    }
+    throw lastError ?? new Error('All Gemini models quota exceeded');
   }
 
   async generateWithClaude(topic: string, count: number = 10): Promise<Flashcard[]> {

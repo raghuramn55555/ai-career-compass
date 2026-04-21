@@ -8,6 +8,49 @@ if (!API_KEY) {
 
 const genAI = new GoogleGenerativeAI(API_KEY || '');
 
+// Models in priority order — best first, falls back on quota errors
+const GEMINI_MODELS = [
+  'gemini-2.5-pro',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-flash-latest',
+  'gemini-3-flash-preview',
+  'gemini-3.1-flash-lite-preview',
+  'gemini-flash-lite-latest',
+];
+
+// Helper: call Gemini with automatic top-down model fallback
+async function callGeminiWithFallback(prompt: string, config?: { temperature?: number; maxOutputTokens?: number }): Promise<string> {
+  let lastError: Error | null = null;
+  for (const modelName of GEMINI_MODELS) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          temperature: config?.temperature ?? 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: config?.maxOutputTokens,
+        },
+      });
+      const result = await model.generateContent(prompt);
+      console.log(`[Gemini] Using model: ${modelName}`);
+      return result.response.text();
+    } catch (e: any) {
+      const msg = e?.message || '';
+      if (msg.includes('429') || msg.toLowerCase().includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+        console.warn(`[Gemini] ${modelName} quota exceeded, trying next...`);
+        lastError = e;
+        continue;
+      }
+      throw e; // non-quota error — fail immediately
+    }
+  }
+  throw lastError ?? new Error('All Gemini models quota exceeded');
+}
+
 // Types
 export interface Flashcard {
   front: string;
@@ -80,14 +123,82 @@ export interface ProgressInsight {
 
 // Gemini Service Class
 export class GeminiService {
-  private model = genAI.getGenerativeModel({ 
-    model: 'gemini-2.5-flash',
-    generationConfig: {
-      temperature: 0.7,
-      topK: 40,
-      topP: 0.95,
+  private parseJSON(text: string): any {
+    try {
+      const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/);
+      if (jsonMatch) return JSON.parse(jsonMatch[1]);
+      return JSON.parse(text);
+    } catch (error) {
+      console.error('Failed to parse JSON:', error);
+      throw new Error('Failed to parse AI response');
     }
-  });
+  }
+
+  async generateFlashcards(topic: string, count: number = 10): Promise<Flashcard[]> {
+    const prompt = `Generate ${count} educational flashcards for the topic: "${topic}".
+Format as JSON array: [{"front":"...","back":"...","difficulty":"easy|medium|hard","tags":["..."]}]
+Return ONLY the JSON array, no additional text.`;
+    const text = await callGeminiWithFallback(prompt);
+    return this.parseJSON(text);
+  }
+
+  async generateQuiz(topic: string, difficulty: 'easy' | 'medium' | 'hard' = 'medium', count: number = 10): Promise<QuizQuestion[]> {
+    const prompt = `Generate a ${count}-question multiple choice quiz on: "${topic}". Difficulty: ${difficulty}.
+Format as JSON array: [{"question":"...","options":["A","B","C","D"],"correctAnswer":0,"explanation":"...","difficulty":"${difficulty}","points":10}]
+Return ONLY the JSON array, no additional text.`;
+    const text = await callGeminiWithFallback(prompt);
+    return this.parseJSON(text);
+  }
+
+  async generateStudyPlan(params: { careerGoal: string; currentLevel: string; hoursPerWeek: number; learningStyle: string; weakAreas: string[] }): Promise<StudyPlan> {
+    const prompt = `Create a personalized study plan for: "${params.careerGoal}". Level: ${params.currentLevel}, ${params.hoursPerWeek}h/week, style: ${params.learningStyle}, weak areas: ${params.weakAreas.join(', ')}.
+Return JSON: {"duration_weeks":12,"estimated_hours_per_week":${params.hoursPerWeek},"weekly_schedule":[{"week":1,"topics":[],"goals":[],"resources":[{"type":"video","title":"","url":"","description":"","duration":""}],"milestones":[]}],"assessment_schedule":[]}
+Return ONLY the JSON object, no additional text.`;
+    const text = await callGeminiWithFallback(prompt);
+    return this.parseJSON(text);
+  }
+
+  async analyzeWeakAreas(performanceData: { quizResults: Array<{ topic: string; score: number; totalQuestions: number }>; studyTime: Record<string, number>; recentActivity: string[] }): Promise<WeakArea[]> {
+    const prompt = `Analyze performance and identify weak areas:
+Quiz: ${performanceData.quizResults.map(r => `${r.topic}: ${r.score}/${r.totalQuestions}`).join(', ')}
+Return JSON array: [{"topic":"...","score":45,"recommendation":"...","priority":"high|medium|low"}]
+Return ONLY the JSON array.`;
+    const text = await callGeminiWithFallback(prompt);
+    return this.parseJSON(text);
+  }
+
+  async generatePracticeProblems(topic: string, type: 'coding' | 'math' | 'conceptual' | 'scenario', difficulty: 'easy' | 'medium' | 'hard' = 'medium', count: number = 5): Promise<PracticeProblem[]> {
+    const prompt = `Generate ${count} ${difficulty} ${type} practice problems for: "${topic}".
+Return JSON array: [{"problem":"...","hints":["..."],"solution":"...","difficulty":"${difficulty}","estimated_time":"15 mins","type":"${type}"}]
+Return ONLY the JSON array.`;
+    const text = await callGeminiWithFallback(prompt);
+    return this.parseJSON(text);
+  }
+
+  async getStudyTips(params: { topic: string; learningStyle: string; availableTime: string; challenges: string[] }): Promise<StudyTip[]> {
+    const prompt = `Provide 5-7 personalized study tips for topic: ${params.topic}, style: ${params.learningStyle}, time: ${params.availableTime}, challenges: ${params.challenges.join(', ')}.
+Return JSON array: [{"category":"...","tip":"...","why":"...","how":"..."}]
+Return ONLY the JSON array.`;
+    const text = await callGeminiWithFallback(prompt);
+    return this.parseJSON(text);
+  }
+
+  async analyzeProgress(progressData: { totalStudyTime: number; topicsStudied: number; averageScore: number; streak: number; goalsCompleted: number; totalGoals: number; recentTrends: string[] }): Promise<ProgressInsight> {
+    const prompt = `Analyze study progress: ${progressData.totalStudyTime}h studied, ${progressData.averageScore}% avg score, ${progressData.streak} day streak, ${progressData.goalsCompleted}/${progressData.totalGoals} goals.
+Return JSON: {"overall_assessment":"...","improvement_trends":[],"areas_of_concern":[],"predictions":[],"recommended_adjustments":[],"encouragement":"..."}
+Return ONLY the JSON object.`;
+    const text = await callGeminiWithFallback(prompt);
+    return this.parseJSON(text);
+  }
+
+  async summarizeContent(content: string, maxLength: number = 500): Promise<{ keyPoints: string[]; mainConcepts: Array<{ concept: string; explanation: string }>; importantTerms: Array<{ term: string; definition: string }>; practiceQuestions: string[] }> {
+    const prompt = `Summarize for studying (max ${maxLength} words): ${content.substring(0, 3000)}
+Return JSON: {"keyPoints":[],"mainConcepts":[{"concept":"","explanation":""}],"importantTerms":[{"term":"","definition":""}],"practiceQuestions":[]}
+Return ONLY the JSON object.`;
+    const text = await callGeminiWithFallback(prompt);
+    return this.parseJSON(text);
+  }
+}
 
   private parseJSON(text: string): any {
     try {

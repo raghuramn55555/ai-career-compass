@@ -1,5 +1,48 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Models in priority order — best first, falls back on quota errors
+const GEMINI_MODELS = [
+  'gemini-2.5-pro',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-flash-latest',
+  'gemini-3-flash-preview',
+  'gemini-3.1-flash-lite-preview',
+  'gemini-flash-lite-latest',
+];
+
+// Helper: call Gemini with automatic top-down model fallback
+async function callGeminiWithFallback(ai: GoogleGenerativeAI, prompt: string, config?: { temperature?: number; maxOutputTokens?: number }): Promise<string> {
+  let lastError: Error | null = null;
+  for (const modelName of GEMINI_MODELS) {
+    try {
+      const model = ai.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          temperature: config?.temperature ?? 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: config?.maxOutputTokens,
+        },
+      });
+      const result = await model.generateContent(prompt);
+      console.log(`[Gemini] Using model: ${modelName}`);
+      return result.response.text();
+    } catch (e: any) {
+      const msg = e?.message || '';
+      if (msg.includes('429') || msg.toLowerCase().includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+        console.warn(`[Gemini] ${modelName} quota exceeded, trying next...`);
+        lastError = e;
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastError ?? new Error('All Gemini models quota exceeded');
+}
+
 // API Key Configuration
 const API_KEYS = {
   chatbot: import.meta.env.VITE_GEMINI_API_KEY_CHATBOT || '',
@@ -131,14 +174,9 @@ export class GeminiMultiKeyService {
   }
 
   private getModel(apiType: keyof typeof aiInstances) {
-    return aiInstances[apiType].getGenerativeModel({ 
-      model: 'gemini-2.5-flash',
-      generationConfig: {
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
-      }
-    });
+    return {
+      generateContent: (prompt: string) => callGeminiWithFallback(aiInstances[apiType], prompt).then(text => ({ response: { text: () => text } }))
+    };
   }
 
   // ============================================

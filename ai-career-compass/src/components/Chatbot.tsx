@@ -82,114 +82,85 @@ How may I assist you today?`,
         console.error('❌ VITE_GEMINI_API_KEY not found in environment variables');
         throw new Error('API key not configured');
       }
-      
-      console.log('🔑 API Key loaded from environment');
-      console.log('📝 User message:', userMessage.content);
-      console.log('🎯 Career context:', context.career);
-      
+
+      // Models in priority order — best first, falls back on quota errors
+      const CHATBOT_MODELS = [
+        'gemini-2.5-pro',
+        'gemini-2.5-flash',
+        'gemini-2.5-flash-lite',
+        'gemini-2.0-flash',
+        'gemini-2.0-flash-lite',
+        'gemini-flash-latest',
+        'gemini-3-flash-preview',
+        'gemini-3.1-flash-lite-preview',
+        'gemini-flash-lite-latest',
+      ];
+
       // Analyze user message to determine appropriate response length
-      let maxTokens = 1200; // Default to longer responses
+      let maxTokens = 1200;
       const userMessageLower = userMessage.content.toLowerCase();
-      
-      // Very short responses only for yes/no questions
-      if (userMessageLower.match(/^(yes|no|ok|thanks|thank you)$/)) {
-        maxTokens = 50;
-      }
-      // Short but complete responses for definitions
-      else if (userMessageLower.match(/\b(what is|what's|define|meaning of)\b/)) {
-        maxTokens = 800;
-      }
-      // Very detailed responses for complex questions
-      else if (userMessageLower.match(/\b(explain|describe|how to|guide|steps|detailed|comprehensive|everything about|tell me about)\b/)) {
-        maxTokens = 2500;
-      }
-      // Medium responses for lists and comparisons
-      else if (userMessageLower.match(/\b(list|compare|difference|pros and cons|advantages|tips)\b/)) {
-        maxTokens = 1500;
-      }
-      
-      console.log('📏 Token limit set to:', maxTokens, 'based on user query');
-      
-      // Build conversation for Gemini with professional career advisor persona
+      if (userMessageLower.match(/^(yes|no|ok|thanks|thank you)$/)) maxTokens = 50;
+      else if (userMessageLower.match(/\b(what is|what's|define|meaning of)\b/)) maxTokens = 800;
+      else if (userMessageLower.match(/\b(explain|describe|how to|guide|steps|detailed|comprehensive|everything about|tell me about)\b/)) maxTokens = 2500;
+      else if (userMessageLower.match(/\b(list|compare|difference|pros and cons|advantages|tips)\b/)) maxTokens = 1500;
+
       const conversationText = `You are a professional career advisor and mentor with extensive experience in career development, education planning, and professional growth. Your role is to provide expert guidance to individuals pursuing their career goals.
 
 CONTEXT:
-- Client Name: User
 - Career Goal: ${context.career}
 - Career Category: ${context.careerDescription}
 - Progress: ${context.completedTasks} out of ${context.totalTasks} tasks completed
 - Current Milestone: ${context.currentMilestone}
 
-YOUR EXPERTISE:
-- Career counseling and development strategies
-- Educational pathway planning
-- Skill development and training recommendations
-- Industry insights and market trends
-- Professional networking advice
-- Work-life balance guidance
-- Interview preparation and resume building
-- Career transition strategies
-
 COMMUNICATION STYLE:
 - Professional yet approachable and supportive
 - Provide actionable, specific advice
-- Use industry terminology appropriately
-- Share relevant examples and case studies when helpful
-- Be encouraging while maintaining realistic expectations
-- Ask clarifying questions when needed
 - Structure responses with clear steps or bullet points
-- Reference credible sources or best practices
-
-IMPORTANT: Always provide complete, well-formed responses. Never cut off mid-sentence. Ensure your advice is thorough, practical, and tailored to the client's specific career path.
 
 Client Question: ${userMessage.content}
 
 Please provide professional career guidance:`;
 
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-      console.log('🌐 Calling API:', apiUrl.replace(apiKey, 'API_KEY_HIDDEN'));
+      // Try models top-down until one works
+      let data: any = null;
+      let lastChatError: Error | null = null;
+      for (const modelName of CHATBOT_MODELS) {
+        try {
+          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: conversationText }] }],
+              generationConfig: { temperature: 0.7, maxOutputTokens: maxTokens, candidateCount: 1 },
+            }),
+          });
 
-      // Call Google Gemini API with simplified format
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: conversationText
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: maxTokens,
-            candidateCount: 1,
-            stopSequences: [],
-          },
-        }),
-      });
+          if (response.status === 429) {
+            console.warn(`[Chatbot] ${modelName} quota exceeded, trying next...`);
+            lastChatError = new Error(`429 quota exceeded for ${modelName}`);
+            continue;
+          }
 
-      console.log('📡 Response status:', response.status);
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`API Error: ${response.status} - ${JSON.stringify(errorData)}`);
+          }
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('❌ Gemini API Error:', errorData);
-        throw new Error(`API Error: ${response.status} - ${JSON.stringify(errorData)}`);
+          data = await response.json();
+          console.log(`[Chatbot] Using model: ${modelName}`);
+          break;
+        } catch (e: any) {
+          const msg = e?.message || '';
+          if (msg.includes('429') || msg.toLowerCase().includes('quota')) {
+            lastChatError = e;
+            continue;
+          }
+          throw e;
+        }
       }
 
-      const data = await response.json();
-      console.log('✅ API Response:', data);
-      
-      // Check if response has the expected structure
-      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-        console.error('❌ Unexpected API response structure:', data);
-        throw new Error('Invalid API response structure');
-      }
+      if (!data) throw lastChatError ?? new Error('All Gemini models quota exceeded');
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
