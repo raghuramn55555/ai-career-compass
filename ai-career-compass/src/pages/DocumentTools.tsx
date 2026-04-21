@@ -36,9 +36,14 @@ const DocumentTools = () => {
   const [tab, setTab] = useState<Tab>('summarize');
   const [mode, setMode] = useState<Mode>('summary');
   const [file, setFile] = useState<File | null>(null);
-  const [docText, setDocText] = useState<string>(''); // cached extracted text for chat follow-ups
+  const [docText, setDocText] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<SummaryResult | null>(null);
+  // Store results per mode independently
+  const [results, setResults] = useState<Record<Mode, SummaryResult | null>>({
+    summary: null,
+    keyTerms: null,
+    studyGuide: null,
+  });
   const [error, setError] = useState('');
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -64,7 +69,7 @@ const DocumentTools = () => {
       return;
     }
     setFile(selected);
-    setResult(null);
+    setResults({ summary: null, keyTerms: null, studyGuide: null });
     setError('');
     setDocText('');
     setChatMessages([]);
@@ -80,10 +85,9 @@ const DocumentTools = () => {
     if (!file) { setError('Please upload a document first.'); return; }
     setLoading(true);
     setError('');
-    setResult(null);
     try {
       const data = await documentAPI.summarize(file, mode);
-      setResult(data.result);
+      setResults(prev => ({ ...prev, [mode]: data.result }));
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Failed to summarize. Please try again.');
     } finally {
@@ -159,7 +163,7 @@ const DocumentTools = () => {
                     <p className="font-semibold text-sm">{file.name}</p>
                     <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
                   </div>
-                  <button onClick={e => { e.stopPropagation(); setFile(null); setResult(null); setDocText(''); setChatMessages([]); }}
+                  <button onClick={e => { e.stopPropagation(); setFile(null); setResults({ summary: null, keyTerms: null, studyGuide: null }); setDocText(''); setChatMessages([]); }}
                     className="ml-4 text-muted-foreground hover:text-destructive transition-colors">
                     <X className="h-4 w-4" />
                   </button>
@@ -180,9 +184,10 @@ const DocumentTools = () => {
             <div className="max-w-3xl">
               <div className="flex flex-wrap gap-3 mb-6">
                 {MODES.map(o => (
-                  <button key={o.key} onClick={() => { setMode(o.key); setResult(null); setError(''); }}
+                  <button key={o.key} onClick={() => { setMode(o.key); setError(''); }}
                     className={`px-4 py-2 rounded-lg text-sm transition-all ${mode === o.key ? 'gradient-bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'}`}>
                     {o.label}
+                    {results[o.key] && <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-green-400 inline-block" />}
                   </button>
                 ))}
               </div>
@@ -193,19 +198,19 @@ const DocumentTools = () => {
                 {loading ? 'Analyzing...' : 'Summarize'}
               </button>
 
-              {result && (
+              {results[mode] && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-6 mt-6">
-                  <h3 className="font-bold text-lg mb-4">{result.title}</h3>
+                  <h3 className="font-bold text-lg mb-4">{results[mode]!.title}</h3>
                   <div className="space-y-5">
 
                     {/* Key Points — shown for summary and studyGuide */}
-                    {result.points.length > 0 && (
+                    {results[mode]!.points.length > 0 && (
                       <div>
                         <h4 className="text-sm font-semibold mb-2">
                           {mode === 'studyGuide' ? 'Study Points' : 'Key Points'}
                         </h4>
                         <ul className="space-y-2">
-                          {result.points.map((p, i) => (
+                          {results[mode]!.points.map((p, i) => (
                             <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
                               <span className="text-primary mt-0.5">•</span> {p}
                             </li>
@@ -215,11 +220,11 @@ const DocumentTools = () => {
                     )}
 
                     {/* Key Terms — shown for keyTerms and studyGuide */}
-                    {result.terms.length > 0 && (
+                    {results[mode]!.terms.length > 0 && (
                       <div>
                         <h4 className="text-sm font-semibold mb-2">Key Terms</h4>
                         <div className="flex flex-wrap gap-1.5">
-                          {result.terms.map((t, i) => (
+                          {results[mode]!.terms.map((t, i) => (
                             <span key={i} className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary">{t}</span>
                           ))}
                         </div>
@@ -227,11 +232,11 @@ const DocumentTools = () => {
                     )}
 
                     {/* Action Items — shown for studyGuide only */}
-                    {result.actions.length > 0 && (
+                    {results[mode]!.actions.length > 0 && (
                       <div>
                         <h4 className="text-sm font-semibold mb-2">Action Items</h4>
                         <ul className="space-y-1">
-                          {result.actions.map((a, i) => (
+                          {results[mode]!.actions.map((a, i) => (
                             <li key={i} className="text-sm text-muted-foreground flex items-center gap-2">
                               <span className="text-accent">✓</span> {a}
                             </li>
@@ -241,7 +246,7 @@ const DocumentTools = () => {
                     )}
 
                     {/* Empty state fallback */}
-                    {result.points.length === 0 && result.terms.length === 0 && result.actions.length === 0 && (
+                    {results[mode]!.points.length === 0 && results[mode]!.terms.length === 0 && results[mode]!.actions.length === 0 && (
                       <p className="text-sm text-muted-foreground">No content could be extracted. Please try again.</p>
                     )}
 
