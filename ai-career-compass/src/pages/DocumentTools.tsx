@@ -197,34 +197,54 @@ const DocumentTools = () => {
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-6 mt-6">
                   <h3 className="font-bold text-lg mb-4">{result.title}</h3>
                   <div className="space-y-5">
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2">Key Points</h4>
-                      <ul className="space-y-2">
-                        {result.points.map((p, i) => (
-                          <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                            <span className="text-primary mt-0.5">•</span> {p}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2">Key Terms</h4>
-                      <div className="flex flex-wrap gap-1.5">
-                        {result.terms.map(t => (
-                          <span key={t} className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary">{t}</span>
-                        ))}
+
+                    {/* Key Points — shown for summary and studyGuide */}
+                    {result.points.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2">
+                          {mode === 'studyGuide' ? 'Study Points' : 'Key Points'}
+                        </h4>
+                        <ul className="space-y-2">
+                          {result.points.map((p, i) => (
+                            <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                              <span className="text-primary mt-0.5">•</span> {p}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2">Action Items</h4>
-                      <ul className="space-y-1">
-                        {result.actions.map((a, i) => (
-                          <li key={i} className="text-sm text-muted-foreground flex items-center gap-2">
-                            <span className="text-accent">✓</span> {a}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                    )}
+
+                    {/* Key Terms — shown for keyTerms and studyGuide */}
+                    {result.terms.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2">Key Terms</h4>
+                        <div className="flex flex-wrap gap-1.5">
+                          {result.terms.map((t, i) => (
+                            <span key={i} className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary">{t}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action Items — shown for studyGuide only */}
+                    {result.actions.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2">Action Items</h4>
+                        <ul className="space-y-1">
+                          {result.actions.map((a, i) => (
+                            <li key={i} className="text-sm text-muted-foreground flex items-center gap-2">
+                              <span className="text-accent">✓</span> {a}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Empty state fallback */}
+                    {result.points.length === 0 && result.terms.length === 0 && result.actions.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No content could be extracted. Please try again.</p>
+                    )}
+
                   </div>
                 </motion.div>
               )}
