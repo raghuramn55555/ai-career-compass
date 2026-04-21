@@ -38,16 +38,14 @@ const AIRoadmap = ({ career, level = 'beginner' }: AIRoadmapProps) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Reset progress when level changes
+  // Reset and reload when career or level changes
   useEffect(() => {
     setActiveIndex(0);
     setRoadmap(null);
-  }, [level]);
+    setError(null);
+    setLoading(true);
 
-  useEffect(() => {
     const load = async () => {
-      setLoading(true);
-      setError(null);
       const result = await roadmapService.generateRoadmap(career, level);
       if (result.success && result.data) {
         setRoadmap(result.data);
@@ -103,7 +101,7 @@ const AIRoadmap = ({ career, level = 'beginner' }: AIRoadmapProps) => {
       <div className="mb-8 glass-card rounded-xl p-5 border border-primary/20">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <p className="font-semibold">Your Journey</p>
+            <p className="font-semibold">Your Journey <span className="text-xs font-normal text-muted-foreground capitalize ml-1 px-2 py-0.5 rounded-full bg-secondary">{level}</span></p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {completedCount} of {totalSteps} milestones reached · {points} XP earned
             </p>
