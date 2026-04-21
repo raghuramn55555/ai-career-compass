@@ -16,18 +16,34 @@ const Roadmap = () => {
   const [openMilestone, setOpenMilestone] = useState<string | null>(null);
   const [tasksLoading, setTasksLoading] = useState(false);
 
+  // Cache tasks per level — same concept as document summary per-mode cache
+  const [taskCache, setTaskCache] = useState<Record<string, any[]>>({
+    beginner: [],
+    intermediate: [],
+    advanced: [],
+  });
+
   useEffect(() => {
     if (!isAuthenticated) navigate('/auth');
     if (!selectedCareer) navigate('/results');
   }, [isAuthenticated, selectedCareer, navigate]);
 
-  // Fetch level-specific tasks from backend whenever level changes
+  // When level switches — if already cached, load from cache instantly
+  // If not cached yet, fetch from backend and cache it
   useEffect(() => {
     if (!selectedCareer) return;
+
+    // Already cached — load instantly, no API call
+    if (taskCache[level].length > 0) {
+      generateRoadmap({ ...selectedCareer, _levelMilestones: taskCache[level] } as any);
+      setOpenMilestone('m1');
+      return;
+    }
+
+    // Not cached — fetch from backend
     setTasksLoading(true);
     setOpenMilestone(null);
 
-    // Use the LLM generate_roadmap endpoint which supports level
     fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api'}/careers/roadmap/generate-by-title/`, {
       method: 'POST',
       headers: {
@@ -38,9 +54,7 @@ const Roadmap = () => {
     })
       .then(r => r.json())
       .then((data) => {
-        // data.roadmap = [{step_number, title, description}]
         if (Array.isArray(data.roadmap) && data.roadmap.length > 0) {
-          // Convert roadmap steps into milestone+task format
           const milestones = data.roadmap.map((step: any, i: number) => ({
             id: `m${i + 1}`,
             title: step.title,
@@ -66,6 +80,8 @@ const Roadmap = () => {
               },
             ],
           }));
+          // Store in cache for this level
+          setTaskCache(prev => ({ ...prev, [level]: milestones }));
           generateRoadmap({ ...selectedCareer, _levelMilestones: milestones } as any);
         } else {
           generateRoadmap(selectedCareer);
@@ -74,10 +90,7 @@ const Roadmap = () => {
       .catch(() => generateRoadmap(selectedCareer))
       .finally(() => {
         setTasksLoading(false);
-        // Auto-open first milestone after load
-        setTimeout(() => {
-          setOpenMilestone('m1');
-        }, 100);
+        setTimeout(() => setOpenMilestone('m1'), 100);
       });
   }, [level, selectedCareer?.title]);
 
@@ -125,8 +138,9 @@ const Roadmap = () => {
             <div className="flex gap-2">
               {(['beginner', 'intermediate', 'advanced'] as const).map((l) => (
                 <button key={l} onClick={() => setLevel(l)}
-                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${level === l ? 'gradient-bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground'}`}>
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-1.5 ${level === l ? 'gradient-bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground'}`}>
                   {l.charAt(0).toUpperCase() + l.slice(1)}
+                  {taskCache[l].length > 0 && <span className="h-1.5 w-1.5 rounded-full bg-green-400 inline-block" />}
                 </button>
               ))}
             </div>
