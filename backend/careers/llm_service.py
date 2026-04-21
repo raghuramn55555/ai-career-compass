@@ -2,17 +2,17 @@ import json
 from django.conf import settings
 from typing import Dict, List, Any
 
-# Gemini models in priority order — falls back to next on 429 quota errors
-# Order: best quality first, then fallbacks
+# Gemini models in priority order — best quality first, falls back down on 429
 GEMINI_MODEL_FALLBACK = [
-    'gemini-flash-latest',          # alias — always points to latest flash
-    'gemini-3-flash-preview',       # Gemini 3 Flash — high quality
-    'gemini-3.1-flash-lite-preview',# Gemini 3.1 Flash Lite — fast & efficient
-    'gemini-flash-lite-latest',     # alias — latest flash lite
-    'gemini-2.5-flash',             # fallback if newer models exhausted
-    'gemini-2.5-flash-lite',        # fallback
-    'gemini-2.0-flash',             # fallback
-    'gemini-2.0-flash-lite',        # last resort
+    'gemini-2.5-pro',               # Best quality
+    'gemini-2.5-flash',             # Fast + high quality
+    'gemini-2.5-flash-lite',        # Lighter version of 2.5
+    'gemini-2.0-flash',             # Previous gen flash
+    'gemini-2.0-flash-lite',        # Previous gen lite
+    'gemini-flash-latest',          # Latest flash alias
+    'gemini-3-flash-preview',       # Gemini 3 preview
+    'gemini-3.1-flash-lite-preview',# Gemini 3.1 lite preview
+    'gemini-flash-lite-latest',     # Final fallback
 ]
 
 class LLMService:
