@@ -307,26 +307,40 @@ Replace the example topics with 6-8 real topics for {career} at {skill_level} le
         doc_text = text[:3000] if len(text) > 3000 else text
         
         if mode == 'summary':
-            prompt = f"""Summarize this document in 8-10 key points:
+            prompt = f"""Summarize this document in 8-10 key points.
+
+STRICT RULES:
+- Each point must be a plain, complete sentence.
+- Do NOT use markdown, asterisks (*), bold (**), bullet symbols, hyphens, or any special formatting.
+- Do NOT use nested points or sub-bullets.
+- Write each point as a simple factual sentence, e.g. "Intruders are attackers who attempt unauthorized access to a network."
 
 {doc_text}
 
 Return ONLY this JSON (no markdown, no extra text):
-{{"title": "Summary", "points": ["point1", "point2", "point3"], "terms": [], "actions": []}}"""
+{{"title": "Summary", "points": ["Plain sentence point 1.", "Plain sentence point 2."], "terms": [], "actions": []}}"""
         elif mode == 'keyTerms':
-            prompt = f"""Extract 5-8 key terms and concepts from this document:
+            prompt = f"""Extract 5-8 key terms and concepts from this document.
+
+STRICT RULES:
+- Each term must be a short plain-text label with no asterisks, bold, or markdown.
+- Example good terms: "Intrusion Detection", "Password Hashing", "Access Control"
 
 {doc_text}
 
 Return ONLY this JSON (no markdown, no extra text):
-{{"title": "Key Terms", "points": [], "terms": ["term1", "term2", "term3"], "actions": []}}"""
+{{"title": "Key Terms", "points": [], "terms": ["Term One", "Term Two", "Term Three"], "actions": []}}"""
         else:  # studyGuide
-            prompt = f"""Create a study guide from this document with key points and action items:
+            prompt = f"""Create a study guide from this document.
+
+STRICT RULES:
+- All points and action items must be plain sentences with no markdown, asterisks, bold, or bullet symbols.
+- Points should summarize what to understand. Actions should say what to do, e.g. "Review the types of intruders and their methods."
 
 {doc_text}
 
 Return ONLY this JSON (no markdown, no extra text):
-{{"title": "Study Guide", "points": ["point1", "point2"], "terms": ["term1"], "actions": ["action1", "action2"]}}"""
+{{"title": "Study Guide", "points": ["Plain sentence point 1.", "Plain sentence point 2."], "terms": ["Term One", "Term Two"], "actions": ["Plain action item 1.", "Plain action item 2."]}}"""
         
         try:
             if self.provider == 'openai':
@@ -392,7 +406,11 @@ CONVERSATION HISTORY:
 
 USER QUESTION: {question}
 
-Provide a clear, concise answer based on the document content. If the answer is not in the document, say so."""
+STRICT RULES:
+- Answer in plain, clear sentences only.
+- Do NOT use markdown, asterisks (*), bold (**), bullet points, or any special formatting.
+- Write naturally as if explaining to a student in plain English.
+- If the answer is not in the document, say so plainly."""
         
         try:
             if self.provider == 'openai':
