@@ -1,7 +1,7 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView, TokenObtainPairView
 from .serializers import EmailTokenObtainPairSerializer
-from .views import RegisterView, UserProfileView, ForgotPasswordView, ResetPasswordView, GenerateResumeView, SyncProgressView
+from .views import RegisterView, UserProfileView, ForgotPasswordView, ResetPasswordView, GenerateResumeView, SyncProgressView, AdminUsersView
 
 
 class EmailTokenObtainPairView(TokenObtainPairView):
@@ -17,4 +17,5 @@ urlpatterns = [
     path('reset-password/', ResetPasswordView.as_view(), name='reset-password'),
     path('generate-resume/', GenerateResumeView.as_view(), name='generate-resume'),
     path('sync-progress/', SyncProgressView.as_view(), name='sync-progress'),
+    path('admin-users/', AdminUsersView.as_view(), name='admin-users'),
 ]

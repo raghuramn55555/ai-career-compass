@@ -254,7 +254,19 @@ Skills: {skills_str}"""
         return response
 
 
-class ForgotPasswordView(views.APIView):
+class AdminUsersView(views.APIView):
+    """Panel demo endpoint — shows all registered users (no auth required)"""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        users = User.objects.all().order_by('date_joined').values(
+            'id', 'username', 'email', 'points', 'level',
+            'streak', 'tasks_completed', 'study_hours', 'date_joined'
+        )
+        return Response({
+            'total_users': User.objects.count(),
+            'users': list(users)
+        })
     permission_classes = [AllowAny]
 
     def post(self, request):
