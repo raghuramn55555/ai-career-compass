@@ -4,5 +4,5 @@ set -o errexit
 pip install -r requirements.txt
 python manage.py collectstatic --no-input
 python manage.py migrate
-python manage.py seed_careers
-python manage.py create_superuser_auto
+python manage.py seed_careers || true
+python manage.py create_superuser_auto || true
