@@ -261,12 +261,34 @@ class AdminUsersView(views.APIView):
     def get(self, request):
         users = User.objects.all().order_by('date_joined').values(
             'id', 'username', 'email', 'points', 'level',
-            'streak', 'tasks_completed', 'study_hours', 'date_joined'
+            'streak', 'tasks_completed', 'study_hours', 'date_joined',
+            'is_superuser', 'is_staff'
         )
         return Response({
             'total_users': User.objects.count(),
             'users': list(users)
         })
+
+    def post(self, request):
+        """Create superuser on demand — for production setup only"""
+        secret = request.data.get('secret', '')
+        if secret != 'setup2024':
+            return Response({'error': 'Invalid secret'}, status=status.HTTP_403_FORBIDDEN)
+
+        email = 'admin@aicareercompass.com'
+        password = 'Admin@1234'
+        username = 'admin'
+
+        if User.objects.filter(email=email).exists():
+            u = User.objects.get(email=email)
+            u.is_superuser = True
+            u.is_staff = True
+            u.set_password(password)
+            u.save()
+            return Response({'message': f'Superuser updated: {email} / {password}'})
+
+        User.objects.create_superuser(username=username, email=email, password=password)
+        return Response({'message': f'Superuser created: {email} / {password}'})
     permission_classes = [AllowAny]
 
     def post(self, request):
