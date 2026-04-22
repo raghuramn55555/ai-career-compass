@@ -289,6 +289,9 @@ class AdminUsersView(views.APIView):
 
         User.objects.create_superuser(username=username, email=email, password=password)
         return Response({'message': f'Superuser created: {email} / {password}'})
+
+
+class ForgotPasswordView(views.APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
